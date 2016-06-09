@@ -79,7 +79,8 @@ template.server = {
       },
       cors: false,
       errorHandler: {
-        disableStackTrace: false,
+        debug: true,
+        log: true
       },
     }},
     { name: 'legacyExplorer', value: false },

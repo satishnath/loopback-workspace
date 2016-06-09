@@ -19,6 +19,11 @@ var TestDataBuilder = require('./helpers/test-data-builder');
 var ref = TestDataBuilder.ref;
 var given = require('./helpers/given');
 var should = require('chai').should();
+// This may not work when the scaffolded application uses a different
+// loopback or loopback-boot version than the one used in loopback-workspace
+// Please make sure that versions are conform.
+var loopback = require('loopback');
+var boot = require('loopback-boot');
 
 var Workspace = workspace.models.Workspace;
 
@@ -967,6 +972,47 @@ describe('end-to-end', function() {
         delete process.env.PORT;
         if (err) return done(err);
         expectAppIsRunning(done);
+      });
+    });
+
+    it('includes sensitive error details in development mode', function(done) {
+      var app = loopback({ localRegistry: true, loadBuiltinModels: true });
+      var bootOptions = {
+        appRootDir: SANDBOX,
+        env: 'development'
+      };
+      boot(app, bootOptions, function(err) {
+        if (err) return done(err);
+        app.listen(0, function() {
+          request(app)
+            .get('/url-does-not-exist')
+            .expect(404)
+            .end(function(err, res) {
+              var actualError = res.error;
+              expect(actualError).to.have.property('stack');
+              done();
+          });
+        });
+      });
+    });
+
+    it('omits sensitive error details in production mode', function(done) {
+      var app = loopback({ localRegistry: true, loadBuiltinModels: true });
+      var bootOptions = {
+        appRootDir: SANDBOX,
+        env: 'production'
+      };
+      boot(app, bootOptions, function(err) {
+        if (err) return done(err);
+        app.listen(0, function() {
+          request(app)
+            .get('/url-does-not-exist')
+            .expect(404)
+            .end(function(err, res) {
+              expect(JSON.stringify(res.body, null, 2)).to.not.contain(__filename)
+              done();
+          });
+        });
       });
     });
 

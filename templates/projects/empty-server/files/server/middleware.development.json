@@ -1,0 +1,8 @@
+{
+  "final:after": {
+    "strong-error-handler": {
+      "params": {
+        "debug": true
+      }
+  }
+}
