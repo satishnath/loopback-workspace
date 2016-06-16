@@ -24,6 +24,8 @@ var should = require('chai').should();
 // Please make sure that versions are conform.
 var loopback = require('loopback');
 var boot = require('loopback-boot');
+var errorHandler = require('strong-error-handler');
+var supertest = require('supertest');
 
 var Workspace = workspace.models.Workspace;
 
@@ -975,47 +977,58 @@ describe('end-to-end', function() {
       });
     });
 
-    it('includes sensitive error details in development mode', function(done) {
-      var app = loopback({ localRegistry: true, loadBuiltinModels: true });
-      var bootOptions = {
-        appRootDir: SANDBOX,
-        env: 'development'
-      };
-      boot(app, bootOptions, function(err) {
-        if (err) return done(err);
-        app.listen(0, function() {
-          request(app)
-            .get('/url-does-not-exist')
-            .expect(404)
-            .end(function(err, res) {
-              var actualError = res.error;
-              expect(actualError).to.have.property('stack');
-              done();
+    describe('error handling in dev/prod', function() {
+      it('includes sensitive error details in development mode', function(done) {
+        var app = loopback({ localRegistry: true, loadBuiltinModels: true });
+        var bootOptions = {
+          appRootDir: SANDBOX,
+          env: 'development'
+        };
+        boot(app, bootOptions, function(err) {
+          if (err) return done(err);
+          app.listen(0, function() {
+            request(app)
+              .get('/url-does-not-exist')
+              .expect(404)
+              .end(function(err, res) {
+                app.use(function(err, res) {
+                  var responseBody = JSON.stringify(res.body);
+                  console.log(responseBody);
+                  expect(responseBody).to.have.property('stack');
+                });
+                  done();
+            });
           });
         });
       });
-    });
 
-    it('omits sensitive error details in production mode', function(done) {
-      var app = loopback({ localRegistry: true, loadBuiltinModels: true });
-      var bootOptions = {
-        appRootDir: SANDBOX,
-        env: 'production'
-      };
-      boot(app, bootOptions, function(err) {
-        if (err) return done(err);
-        app.listen(0, function() {
-          request(app)
-            .get('/url-does-not-exist')
-            .expect(404)
-            .end(function(err, res) {
-              expect(JSON.stringify(res.body, null, 2)).to.not.contain(__filename)
-              done();
+      it('omits sensitive error details in production mode', function(done) {
+        var app = loopback({ localRegistry: true, loadBuiltinModels: true });
+        var bootOptions = {
+          appRootDir: SANDBOX,
+          env: 'production'
+        };
+        boot(app, bootOptions, function(err) {
+          app.listen(0, function() {
+            request(app)
+              .get('/url-does-not-exist')
+              .expect(404)
+              .end(function(err, res) {
+                // Assert that the response body does not contain stack trace.
+                // We want the assertion to be robust and keep working even
+                // if the property name storing stack trace changes in the future,
+                // therefore we test full response body.
+                app.use(function(err, res) {
+                  var responseBody = JSON.stringify(res.body);
+                  console.log(responseBody);
+                  expect(responseBody).to.not.have.property('stack');
+                });
+                  done();
+            });
           });
         });
       });
-    });
-
+   });
     function expectAppIsRunning(appBaseUrl, done) {
       if (typeof appBaseUrl === 'function' && done === undefined) {
         done = appBaseUrl;
